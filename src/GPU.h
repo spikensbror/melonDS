@@ -20,6 +20,7 @@
 #define GPU_H
 
 #include "GPU2D.h"
+#include "NonStupidBitfield.h"
 
 namespace GPU
 {
@@ -45,7 +46,7 @@ extern u8 VRAM_G[ 16*1024];
 extern u8 VRAM_H[ 32*1024];
 extern u8 VRAM_I[ 16*1024];
 
-extern u8* VRAM[9];
+extern u8* const VRAM[9];
 
 extern u32 VRAMMap_LCDC;
 extern u32 VRAMMap_ABG[0x20];
@@ -73,6 +74,33 @@ extern GPU2D* GPU2D_B;
 
 extern int Renderer;
 
+const u32 VRAMDirtyGranularity = 512;
+
+extern NonStupidBitField<512*1024/VRAMDirtyGranularity> VRAMWritten_ABG;
+extern NonStupidBitField<256*1024/VRAMDirtyGranularity> VRAMWritten_AOBJ;
+extern NonStupidBitField<128*1024/VRAMDirtyGranularity> VRAMWritten_BBG;
+extern NonStupidBitField<128*1024/VRAMDirtyGranularity> VRAMWritten_BOBJ;
+extern NonStupidBitField<256*1024/VRAMDirtyGranularity> VRAMWritten_ARM7;
+
+extern NonStupidBitField<128*1024/VRAMDirtyGranularity> VRAMDirty[9];
+
+template <u32 Size, u32 MappingGranularity>
+struct VRAMTrackingSet
+{
+    u16 Mapping[Size / MappingGranularity];
+
+    const u32 VRAMBitsPerMapping = MappingGranularity / VRAMDirtyGranularity;
+
+    NonStupidBitField<Size/VRAMDirtyGranularity> DeriveState(u32* currentMappings);
+};
+
+extern VRAMTrackingSet<512*1024, 16*1024> VRAMDirty_ABG;
+extern VRAMTrackingSet<256*1024, 16*1024> VRAMDirty_AOBJ;
+extern VRAMTrackingSet<128*1024, 16*1024> VRAMDirty_BBG;
+extern VRAMTrackingSet<128*1024, 16*1024> VRAMDirty_BOBJ;
+ 
+extern VRAMTrackingSet<512*1024, 128*1024> VRAMDirty_Texture;
+extern VRAMTrackingSet<128*1024, 16*1024> VRAMDirty_TexPal;
 
 typedef struct
 {
@@ -233,7 +261,11 @@ void WriteVRAM_LCDC(u32 addr, T val)
     default: return;
     }
 
-    if (VRAMMap_LCDC & (1<<bank)) *(T*)&VRAM[bank][addr] = val;
+    if (VRAMMap_LCDC & (1<<bank))
+    {
+        *(T*)&VRAM[bank][addr] = val;
+        VRAMDirty[bank][addr / VRAMDirtyGranularity] = true;
+    }
 }
 
 
@@ -261,6 +293,8 @@ template<typename T>
 void WriteVRAM_ABG(u32 addr, T val)
 {
     u32 mask = VRAMMap_ABG[(addr >> 14) & 0x1F];
+
+    VRAMWritten_ABG[(addr & 0x7FFFF) / VRAMDirtyGranularity] = true;
 
     if (mask & (1<<0)) *(T*)&VRAM_A[addr & 0x1FFFF] = val;
     if (mask & (1<<1)) *(T*)&VRAM_B[addr & 0x1FFFF] = val;
@@ -295,6 +329,8 @@ void WriteVRAM_AOBJ(u32 addr, T val)
 {
     u32 mask = VRAMMap_AOBJ[(addr >> 14) & 0xF];
 
+    VRAMWritten_AOBJ[(addr & 0x3FFFF) / VRAMDirtyGranularity] = true;
+
     if (mask & (1<<0)) *(T*)&VRAM_A[addr & 0x1FFFF] = val;
     if (mask & (1<<1)) *(T*)&VRAM_B[addr & 0x1FFFF] = val;
     if (mask & (1<<4)) *(T*)&VRAM_E[addr & 0xFFFF] = val;
@@ -324,6 +360,8 @@ void WriteVRAM_BBG(u32 addr, T val)
 {
     u32 mask = VRAMMap_BBG[(addr >> 14) & 0x7];
 
+    VRAMWritten_BBG[(addr & 0x1FFFF) / VRAMDirtyGranularity] = true;
+
     if (mask & (1<<2)) *(T*)&VRAM_C[addr & 0x1FFFF] = val;
     if (mask & (1<<7)) *(T*)&VRAM_H[addr & 0x7FFF] = val;
     if (mask & (1<<8)) *(T*)&VRAM_I[addr & 0x3FFF] = val;
@@ -350,6 +388,8 @@ void WriteVRAM_BOBJ(u32 addr, T val)
 {
     u32 mask = VRAMMap_BOBJ[(addr >> 14) & 0x7];
 
+    VRAMWritten_BOBJ[(addr & 0x1FFFF) / VRAMDirtyGranularity] = true;
+
     if (mask & (1<<3)) *(T*)&VRAM_D[addr & 0x1FFFF] = val;
     if (mask & (1<<8)) *(T*)&VRAM_I[addr & 0x3FFF] = val;
 }
@@ -371,6 +411,8 @@ template<typename T>
 void WriteVRAM_ARM7(u32 addr, T val)
 {
     u32 mask = VRAMMap_ARM7[(addr >> 17) & 0x1];
+
+    VRAMWritten_ARM7[(addr & 0x1FFFF) / VRAMDirtyGranularity] = true;
 
     if (mask & (1<<2)) *(T*)&VRAM_C[addr & 0x1FFFF] = val;
     if (mask & (1<<3)) *(T*)&VRAM_D[addr & 0x1FFFF] = val;
