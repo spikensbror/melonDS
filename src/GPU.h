@@ -91,6 +91,10 @@ struct VRAMTrackingSet
 
     const u32 VRAMBitsPerMapping = MappingGranularity / VRAMDirtyGranularity;
 
+    void Reset()
+    {
+        memset(Mapping, 0, sizeof(Mapping));
+    }
     NonStupidBitField<Size/VRAMDirtyGranularity> DeriveState(u32* currentMappings);
 };
 
@@ -98,9 +102,33 @@ extern VRAMTrackingSet<512*1024, 16*1024> VRAMDirty_ABG;
 extern VRAMTrackingSet<256*1024, 16*1024> VRAMDirty_AOBJ;
 extern VRAMTrackingSet<128*1024, 16*1024> VRAMDirty_BBG;
 extern VRAMTrackingSet<128*1024, 16*1024> VRAMDirty_BOBJ;
- 
+
+extern VRAMTrackingSet<32*1024, 8*1024> VRAMDirty_ABGExtPal;
+extern VRAMTrackingSet<32*1024, 8*1024> VRAMDirty_BBGExtPal;
+extern VRAMTrackingSet<8*1024, 8*1024> VRAMDirty_AOBJExtPal;
+extern VRAMTrackingSet<8*1024, 8*1024> VRAMDirty_BOBJExtPal;
+
 extern VRAMTrackingSet<512*1024, 128*1024> VRAMDirty_Texture;
 extern VRAMTrackingSet<128*1024, 16*1024> VRAMDirty_TexPal;
+
+extern u8 VRAMFlat_ABG[512*1024];
+extern u8 VRAMFlat_BBG[128*1024];
+extern u8 VRAMFlat_AOBJ[256*1024];
+extern u8 VRAMFlat_BOBJ[128*1024];
+
+extern u8 VRAMFlat_ABGExtPal[32*1024];
+extern u8 VRAMFlat_BBGExtPal[32*1024];
+
+extern u8 VRAMFlat_AOBJExtPal[8*1024];
+extern u8 VRAMFlat_BOBJExtPal[8*1024];
+
+bool MakeVRAMFlat_ABGExtPalCoherent(NonStupidBitField<32*1024/VRAMDirtyGranularity>& dirty);
+bool MakeVRAMFlat_BBGExtPalCoherent(NonStupidBitField<32*1024/VRAMDirtyGranularity>& dirty);
+
+bool MakeVRAMFlat_AOBJExtPalCoherent(NonStupidBitField<8*1024/VRAMDirtyGranularity>& dirty);
+bool MakeVRAMFlat_BOBJExtPalCoherent(NonStupidBitField<8*1024/VRAMDirtyGranularity>& dirty);
+
+void SyncDirtyFlags();
 
 typedef struct
 {
@@ -393,7 +421,6 @@ void WriteVRAM_BOBJ(u32 addr, T val)
     if (mask & (1<<3)) *(T*)&VRAM_D[addr & 0x1FFFF] = val;
     if (mask & (1<<8)) *(T*)&VRAM_I[addr & 0x3FFF] = val;
 }
-
 
 template<typename T>
 T ReadVRAM_ARM7(u32 addr)

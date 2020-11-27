@@ -148,12 +148,6 @@ void GPU2D::Reset()
     CaptureCnt = 0;
 
     MasterBrightness = 0;
-
-    BGExtPalStatus[0] = 0;
-    BGExtPalStatus[1] = 0;
-    BGExtPalStatus[2] = 0;
-    BGExtPalStatus[3] = 0;
-    OBJExtPalStatus = 0;
 }
 
 void GPU2D::DoSavestate(Savestate* file)
@@ -208,13 +202,6 @@ void GPU2D::DoSavestate(Savestate* file)
 
     if (!file->Saving)
     {
-        // refresh those
-        BGExtPalStatus[0] = 0;
-        BGExtPalStatus[1] = 0;
-        BGExtPalStatus[2] = 0;
-        BGExtPalStatus[3] = 0;
-        OBJExtPalStatus = 0;
-
         CurBGXMosaicTable = MosaicTable[BGMosaicSize[0]];
         CurOBJXMosaicTable = MosaicTable[OBJMosaicSize[0]];
     }
@@ -758,6 +745,21 @@ void GPU2D::DrawScanline(u32 line)
     int n3dline = line;
     line = GPU::VCount;
 
+    if (Num == 0)
+    {
+        auto bgExtPalDirty = GPU::VRAMDirty_ABGExtPal.DeriveState(GPU::VRAMMap_ABGExtPal);
+        GPU::MakeVRAMFlat_ABGExtPalCoherent(bgExtPalDirty);
+        auto objExtPalDirty = GPU::VRAMDirty_AOBJExtPal.DeriveState(&GPU::VRAMMap_AOBJExtPal);
+        GPU::MakeVRAMFlat_AOBJExtPalCoherent(objExtPalDirty);
+    }
+    else
+    {
+        auto bgExtPalDirty = GPU::VRAMDirty_BBGExtPal.DeriveState(GPU::VRAMMap_BBGExtPal);
+        GPU::MakeVRAMFlat_BBGExtPalCoherent(bgExtPalDirty);
+        auto objExtPalDirty = GPU::VRAMDirty_BOBJExtPal.DeriveState(&GPU::VRAMMap_BOBJExtPal);
+        GPU::MakeVRAMFlat_BOBJExtPalCoherent(objExtPalDirty);
+    }
+
     bool forceblank = false;
 
     // scanlines that end up outside of the GPU drawing range
@@ -1188,85 +1190,20 @@ void GPU2D::SampleFIFO(u32 offset, u32 num)
     }
 }
 
-
-void GPU2D::BGExtPalDirty(u32 base)
-{
-    BGExtPalStatus[base] = 0;
-    BGExtPalStatus[base+1] = 0;
-}
-
-void GPU2D::OBJExtPalDirty()
-{
-    OBJExtPalStatus = 0;
-}
-
-
 u16* GPU2D::GetBGExtPal(u32 slot, u32 pal)
 {
-    u16* dst = &BGExtPalCache[slot][pal << 8];
-
-    if (!(BGExtPalStatus[slot] & (1<<pal)))
-    {
-        if (Num)
-        {
-            if (GPU::VRAMMap_BBGExtPal[slot] & (1<<7))
-                memcpy(dst, &GPU::VRAM_H[(slot << 13) + (pal << 9)], 256*2);
-            else
-                memset(dst, 0, 256*2);
-        }
-        else
-        {
-            memset(dst, 0, 256*2);
-
-            if (GPU::VRAMMap_ABGExtPal[slot] & (1<<4))
-                for (int i = 0; i < 256; i+=2)
-                    *(u32*)&dst[i] |= *(u32*)&GPU::VRAM_E[(slot << 13) + (pal << 9) + (i << 1)];
-
-            if (GPU::VRAMMap_ABGExtPal[slot] & (1<<5))
-                for (int i = 0; i < 256; i+=2)
-                    *(u32*)&dst[i] |= *(u32*)&GPU::VRAM_F[((slot&1) << 13) + (pal << 9) + (i << 1)];
-
-            if (GPU::VRAMMap_ABGExtPal[slot] & (1<<6))
-                for (int i = 0; i < 256; i+=2)
-                    *(u32*)&dst[i] |= *(u32*)&GPU::VRAM_G[((slot&1) << 13) + (pal << 9) + (i << 1)];
-        }
-
-        BGExtPalStatus[slot] |= (1<<pal);
-    }
-
-    return dst;
+    const u32 PaletteSize = 256 * 2;
+    const u32 SlotSize = PaletteSize * 16;
+    return (u16*)&(Num == 0
+         ? GPU::VRAMFlat_ABGExtPal
+         : GPU::VRAMFlat_BBGExtPal)[slot * SlotSize + pal * PaletteSize];
 }
 
 u16* GPU2D::GetOBJExtPal()
 {
-    u16* dst = OBJExtPalCache;
-
-    if (!OBJExtPalStatus)
-    {
-        if (Num)
-        {
-            if (GPU::VRAMMap_BOBJExtPal & (1<<8))
-                memcpy(dst, &GPU::VRAM_I[0], 16*256*2);
-            else
-                memset(dst, 0, 16*256*2);
-        }
-        else
-        {
-            memset(dst, 0, 16*256*2);
-
-            if (GPU::VRAMMap_AOBJExtPal & (1<<5))
-                for (int i = 0; i < 16*256; i+=2)
-                    *(u32*)&dst[i] |= *(u32*)&GPU::VRAM_F[i << 1];
-
-            if (GPU::VRAMMap_AOBJExtPal & (1<<6))
-                for (int i = 0; i < 16*256; i+=2)
-                    *(u32*)&dst[i] |= *(u32*)&GPU::VRAM_G[i << 1];
-        }
-
-        OBJExtPalStatus = 1;
-    }
-
-    return dst;
+    return Num == 0
+         ? (u16*)GPU::VRAMFlat_AOBJExtPal
+         : (u16*)GPU::VRAMFlat_BOBJExtPal;
 }
 
 
