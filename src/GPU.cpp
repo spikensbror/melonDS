@@ -139,6 +139,9 @@ u8 VRAMFlat_BBGExtPal[32*1024];
 u8 VRAMFlat_AOBJExtPal[8*1024];
 u8 VRAMFlat_BOBJExtPal[8*1024];
 
+u8 VRAMFlat_Texture[512*1024];
+u8 VRAMFlat_TexPal[128*1024];
+
 bool Init()
 {
     GPU2D_A = new GPU2D(0);
@@ -1180,6 +1183,8 @@ NonStupidBitField<Size/VRAMDirtyGranularity> VRAMTrackingSet<Size, MappingGranul
                 mapping &= ~(1 << num);
 
                 // hack for **speed**
+                // this could probably be done less ugly but then we would rely
+                // on the compiler for vectorisation
                 static_assert(VRAMDirtyGranularity == 512);
                 if (MappingGranularity == 16*1024)
                 {
@@ -1193,10 +1198,10 @@ NonStupidBitField<Size/VRAMDirtyGranularity> VRAMTrackingSet<Size, MappingGranul
                 }
                 else if (MappingGranularity == 128*1024)
                 {
-                    result.Data[i * 4 + 0] |= VRAMDirty[num].Data[0];
-                    result.Data[i * 4 + 1] |= VRAMDirty[num].Data[1];
-                    result.Data[i * 4 + 2] |= VRAMDirty[num].Data[2];
-                    result.Data[i * 4 + 3] |= VRAMDirty[num].Data[3];
+                    ((u64*)result.Data)[i * 4 + 0] |= ((u64*)VRAMDirty[num].Data)[0];
+                    ((u64*)result.Data)[i * 4 + 1] |= ((u64*)VRAMDirty[num].Data)[1];
+                    ((u64*)result.Data)[i * 4 + 2] |= ((u64*)VRAMDirty[num].Data)[2];
+                    ((u64*)result.Data)[i * 4 + 3] |= ((u64*)VRAMDirty[num].Data)[3];
                 }
                 else
                 {
@@ -1219,6 +1224,8 @@ NonStupidBitField<Size/VRAMDirtyGranularity> VRAMTrackingSet<Size, MappingGranul
 
 template NonStupidBitField<32*1024/VRAMDirtyGranularity> VRAMTrackingSet<32*1024, 8*1024>::DeriveState(u32*);
 template NonStupidBitField<8*1024/VRAMDirtyGranularity> VRAMTrackingSet<8*1024, 8*1024>::DeriveState(u32*);
+template NonStupidBitField<512*1024/VRAMDirtyGranularity> VRAMTrackingSet<512*1024, 128*1024>::DeriveState(u32*);
+template NonStupidBitField<128*1024/VRAMDirtyGranularity> VRAMTrackingSet<128*1024, 16*1024>::DeriveState(u32*);
 
 template <u32 Size>
 void SyncDirtyFlags(u32* mappings, NonStupidBitField<Size>& writtenFlags)
@@ -1260,25 +1267,31 @@ inline bool CopyLinearVRAM(u8* flat, u32* mappings, NonStupidBitField<Size>& dir
     typename NonStupidBitField<Size>::Iterator it = dirty.Begin();
     while (it != dirty.End())
     {
-        if (it)
+        u32 offset = *it * VRAMDirtyGranularity;
+        u8* dst = flat + offset;
+        u8* fastAccess = GetUniqueBankPtr(mappings[*it / VRAMBitsPerMapping], offset);
+        if (fastAccess)
         {
-            u32 offset = *it * VRAMDirtyGranularity;
-            u8* dst = flat + offset;
-            u8* fastAccess = GetUniqueBankPtr(mappings[*it / VRAMBitsPerMapping], *it * VRAMDirtyGranularity);
-            if (fastAccess)
-            {
-                memcpy(dst, fastAccess, VRAMDirtyGranularity);
-            }
-            else
-            {
-                for (u32 i = 0; i < VRAMDirtyGranularity; i += 8)
-                    *(u64*)&dst[i] = slowAccess(offset + i);
-            }
-            change = true;
+            memcpy(dst, fastAccess, VRAMDirtyGranularity);
         }
+        else
+        {
+            for (u32 i = 0; i < VRAMDirtyGranularity; i += 8)
+                *(u64*)&dst[i] = slowAccess(offset + i);
+        }
+        change = true;
         it++;
     }
     return change;
+}
+
+bool MakeVRAMFlat_TextureCoherent(NonStupidBitField<512*1024/VRAMDirtyGranularity>& dirty)
+{
+    return CopyLinearVRAM<128*1024>(VRAMFlat_Texture, VRAMMap_Texture, dirty, ReadVRAM_Texture<u64>);
+}
+bool MakeVRAMFlat_TexPalCoherent(NonStupidBitField<128*1024/VRAMDirtyGranularity>& dirty)
+{
+    return CopyLinearVRAM<16*1024>(VRAMFlat_TexPal, VRAMMap_TexPal, dirty, ReadVRAM_TexPal<u64>);
 }
 
 bool MakeVRAMFlat_ABGCoherent(NonStupidBitField<512*1024/VRAMDirtyGranularity>& dirty)
@@ -1341,7 +1354,7 @@ T ReadVRAM_BOBJExtPal(u32 addr)
     u32 mask = VRAMMap_BOBJExtPal;
 
     T ret = 0;
-    if (mask & (1<<8)) ret |= *(T*)&VRAM_H[addr & 0x1FFF];
+    if (mask & (1<<8)) ret |= *(T*)&VRAM_I[addr & 0x1FFF];
 
     return ret;
 }
@@ -1357,11 +1370,11 @@ bool MakeVRAMFlat_BBGExtPalCoherent(NonStupidBitField<32*1024/VRAMDirtyGranulari
 
 bool MakeVRAMFlat_AOBJExtPalCoherent(NonStupidBitField<8*1024/VRAMDirtyGranularity>& dirty)
 {
-    return CopyLinearVRAM<8*1024>(VRAMFlat_AOBJExtPal, VRAMMap_AOBJ, dirty, ReadVRAM_AOBJExtPal<u64>);
+    return CopyLinearVRAM<8*1024>(VRAMFlat_AOBJExtPal, &VRAMMap_AOBJExtPal, dirty, ReadVRAM_AOBJExtPal<u64>);
 }
 bool MakeVRAMFlat_BOBJExtPalCoherent(NonStupidBitField<8*1024/VRAMDirtyGranularity>& dirty)
 {
-    return CopyLinearVRAM<8*1024>(VRAMFlat_BOBJExtPal, VRAMMap_BOBJ, dirty, ReadVRAM_BOBJExtPal<u64>);
+    return CopyLinearVRAM<8*1024>(VRAMFlat_BOBJExtPal, &VRAMMap_BOBJExtPal, dirty, ReadVRAM_BOBJExtPal<u64>);
 }
 
 }

@@ -44,7 +44,6 @@ struct NonStupidBitField
         u64 RemainingBits;
 
         u32 operator*() { return DataIdx * 8 + BitIdx; }
-        operator bool() { return RemainingBits != 0; }
 
         Iterator& operator=(bool set)
         {
@@ -59,17 +58,14 @@ struct NonStupidBitField
         template <typename T>
         void Next()
         {
-            if (RemainingBits == 0)
+            while (RemainingBits == 0 && DataIdx < DataLength)
             {
                 DataIdx += sizeof(T);
-                if (DataIdx < DataLength)
-                    RemainingBits = *(T*)&BitField.Data[DataIdx];
+                RemainingBits = *(T*)&BitField.Data[DataIdx];
             }
-            else
-            {
-                BitIdx = __builtin_ctzll(RemainingBits);
-                RemainingBits &= ~(1ULL << BitIdx);
-            }
+
+            BitIdx = __builtin_ctzll(RemainingBits);
+            RemainingBits &= ~(1ULL << BitIdx);
         }
 
         Iterator operator++(int)
@@ -123,18 +119,14 @@ struct NonStupidBitField
     }
     Iterator Begin()
     {
-        Iterator result{*this, 0};
         if ((DataLength % 8) == 0)
-            result.RemainingBits = *(u64*)Data;
+            return ++Iterator{*this, 0, 0, *(u64*)Data};
         else if ((DataLength % 4) == 0)
-            result.RemainingBits = *(u32*)Data;
+            return ++Iterator{*this, 0, 0, *(u32*)Data};
         else if ((DataLength % 2) == 0)
-            result.RemainingBits = *(u16*)Data;
+            return ++Iterator{*this, 0, 0, *(u16*)Data};
         else
-            result.RemainingBits = *Data;
-        result.BitIdx = __builtin_ctzll(result.RemainingBits);
-        result.RemainingBits &= ~(1 << result.BitIdx);
-        return result;
+            return ++Iterator{*this, 0, 0, *Data};
     }
 
     Ref operator[](u32 idx)

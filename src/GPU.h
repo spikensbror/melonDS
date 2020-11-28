@@ -122,11 +122,17 @@ extern u8 VRAMFlat_BBGExtPal[32*1024];
 extern u8 VRAMFlat_AOBJExtPal[8*1024];
 extern u8 VRAMFlat_BOBJExtPal[8*1024];
 
+extern u8 VRAMFlat_Texture[512*1024];
+extern u8 VRAMFlat_TexPal[128*1024];
+
 bool MakeVRAMFlat_ABGExtPalCoherent(NonStupidBitField<32*1024/VRAMDirtyGranularity>& dirty);
 bool MakeVRAMFlat_BBGExtPalCoherent(NonStupidBitField<32*1024/VRAMDirtyGranularity>& dirty);
 
 bool MakeVRAMFlat_AOBJExtPalCoherent(NonStupidBitField<8*1024/VRAMDirtyGranularity>& dirty);
 bool MakeVRAMFlat_BOBJExtPalCoherent(NonStupidBitField<8*1024/VRAMDirtyGranularity>& dirty);
+
+bool MakeVRAMFlat_TextureCoherent(NonStupidBitField<512*1024/VRAMDirtyGranularity>& dirty);
+bool MakeVRAMFlat_TexPalCoherent(NonStupidBitField<128*1024/VRAMDirtyGranularity>& dirty);
 
 void SyncDirtyFlags();
 
