@@ -1245,9 +1245,8 @@ void SyncDirtyFlags(u32* mappings, NonStupidBitField<Size>& writtenFlags)
 
             mapping &= ~(1 << num);
         }
-
-        it = false;
     }
+    memset(writtenFlags.Data, 0, sizeof(writtenFlags.Data));
 }
 
 void SyncDirtyFlags()

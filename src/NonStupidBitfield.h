@@ -45,13 +45,6 @@ struct NonStupidBitField
 
         u32 operator*() { return DataIdx * 8 + BitIdx; }
 
-        Iterator& operator=(bool set)
-        {
-            BitField.Data[(DataIdx + BitIdx) >> 3] &= ~(1U << (BitIdx & 0x7));
-            BitField.Data[(DataIdx + BitIdx) >> 3] |= ((u8)set << (BitIdx & 0x7));
-            return *this;
-        }
-
         bool operator==(const Iterator& other) { return other.DataIdx == DataIdx; }
         bool operator!=(const Iterator& other) { return other.DataIdx != DataIdx; }
 
