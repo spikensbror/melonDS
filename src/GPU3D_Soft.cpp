@@ -2019,8 +2019,8 @@ void ClearBuffers()
         {
             for (int x = 0; x < 256; x++)
             {
-                u16 val2 = GPU::ReadVRAM_Texture<u16>(0x40000 + (yoff << 9) + (xoff << 1));
-                u16 val3 = GPU::ReadVRAM_Texture<u16>(0x60000 + (yoff << 9) + (xoff << 1));
+                u16 val2 = ReadVRAM_Texture<u16>(0x40000 + (yoff << 9) + (xoff << 1));
+                u16 val3 = ReadVRAM_Texture<u16>(0x60000 + (yoff << 9) + (xoff << 1));
 
                 // TODO: confirm color conversion
                 u32 r = (val2 << 1) & 0x3E; if (r) r++;

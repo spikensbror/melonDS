@@ -1226,6 +1226,8 @@ template NonStupidBitField<32*1024/VRAMDirtyGranularity> VRAMTrackingSet<32*1024
 template NonStupidBitField<8*1024/VRAMDirtyGranularity> VRAMTrackingSet<8*1024, 8*1024>::DeriveState(u32*);
 template NonStupidBitField<512*1024/VRAMDirtyGranularity> VRAMTrackingSet<512*1024, 128*1024>::DeriveState(u32*);
 template NonStupidBitField<128*1024/VRAMDirtyGranularity> VRAMTrackingSet<128*1024, 16*1024>::DeriveState(u32*);
+template NonStupidBitField<256*1024/VRAMDirtyGranularity> VRAMTrackingSet<256*1024, 16*1024>::DeriveState(u32*);
+template NonStupidBitField<512*1024/VRAMDirtyGranularity> VRAMTrackingSet<512*1024, 16*1024>::DeriveState(u32*);
 
 template <u32 Size>
 void SyncDirtyFlags(u32* mappings, NonStupidBitField<Size>& writtenFlags)
