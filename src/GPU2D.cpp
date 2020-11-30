@@ -2535,7 +2535,7 @@ void GPU2D::DrawSprite_Rotscale(u32 num, u32 boundwidth, u32 boundheight, u32 wi
             }
             else
             {
-                tilenum <<= (7 + ((DispCnt >> 22) & 0x1));
+                pixelsaddr = tilenum << (7 + ((DispCnt >> 22) & 0x1));
                 ytilefactor = ((width >> 8) * 2);
             }
         }
