@@ -2032,6 +2032,13 @@ void emuStop()
 
 int main(int argc, char** argv)
 {
+#ifdef _WIN32
+    if (AttachConsole(ATTACH_PARENT_PROCESS)) {
+        freopen("CONOUT$", "w", stdout);
+        freopen("CONOUT$", "w", stderr);
+    }
+#endif
+
     srand(time(NULL));
 
     printf("melonDS " MELONDS_VERSION "\n");
