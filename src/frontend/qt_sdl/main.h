@@ -192,6 +192,8 @@ signals:
 
 private slots:
     void onOpenFile();
+    void onClickRecentFile();
+    void onClearRecentFiles();
     void onBootFirmware();
     void onSaveState();
     void onLoadState();
@@ -238,6 +240,11 @@ private slots:
     void onFastforwardToggled();
 
 private:
+    QList<QString> recentFileList;
+    QMenu *recentMenu;
+    void updateRecentFilesMenu();
+    void loadROM(QString filename);
+
     void createScreenPanel();
 
     QString loadErrorStr(int error);
